@@ -1,0 +1,10 @@
+.env
+venv/
+__pycache__/
+*.pyc
+config/browser_profile/
+storage/
+config/resume.pdf
+config/error_debug.html
+config/run.log
+*.log

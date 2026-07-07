@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Recruiter Post Bot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        .activity-board {
+            background: #ffffff;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        .activity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 0.75rem;
+        }
+        .activity-header h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        .activity-stats {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .stat-item span {
+            color: var(--accent-color);
+        }
+        .activity-table-wrapper {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+        }
+        .activity-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            text-align: left;
+        }
+        .activity-table th {
+            background: #f1f5f9;
+            padding: 0.75rem 1rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: sticky;
+            top: 0;
+        }
+        .activity-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--card-border);
+            color: var(--text-primary);
+        }
+        .activity-table tr:last-child td {
+            border-bottom: none;
+        }
+        .activity-table tr:hover {
+            background: #f8fafc;
+        }
+        .badge-status {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-status-searching {
+            background: #eff6ff;
+            color: #1e40af;
+        }
+        .badge-status-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .badge-status-skipped {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        .badge-status-duplicate {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .collapsible-console {
+            margin-top: 1rem;
+        }
+        .console-trigger {
+            background: #f1f5f9;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            width: 100%;
+            text-align: left;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s ease;
+        }
+        .console-trigger:hover {
+            background: #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="background-glows">
+        <div class="glow glow-1"></div>
+        <div class="glow glow-2"></div>
+    </div>
+
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="app-header">
+            <h1 class="logo">LinkedIn <span>Recruiter Bot</span></h1>
+            <p class="subtitle">Automate your job search directly through LinkedIn posts & direct emails</p>
+        </header>
+
+        <!-- Main Workspace -->
+        <div class="workspace-grid">
+            <!-- Left Panel: Configuration -->
+            <div class="glass-card config-panel">
+                <h2>⚙️ Configuration</h2>
+                
+                <div class="security-card" style="background: rgba(46, 204, 113, 0.08); border: 1px solid #2ecc71; padding: 12px; border-radius: 8px; display: flex; gap: 12px; align-items: flex-start; margin-bottom: 20px;">
+                    <span class="security-icon" style="font-size: 1.5rem; line-height: 1;">🔒</span>
+                    <div>
+                        <h4 style="color: #1e824c; margin: 0; font-size: 0.95rem; font-weight: 600;">Your Privacy & Security Status</h4>
+                        <p style="font-size: 0.8rem; line-height: 1.4; color: #2c3e50; margin-top: 4px; margin-bottom: 0;">
+                            This platform operates as a direct client gateway. Credentials are saved locally in your sandboxed <code>.env</code> file and are sent strictly over secure connections directly to Google/LinkedIn servers. We never collect or track your credentials.
+                        </p>
+                    </div>
+                </div>
+
+                <form id="configForm" enctype="multipart/form-data">
+                    <h3>👤 Candidate Profile (All Required)</h3>
+                    
+                    <div class="form-group">
+                        <label for="candidate_name">Full Name</label>
+                        <input type="text" id="candidate_name" name="candidate_name" value="{{ profile.candidate_name }}" placeholder="Jane Doe" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="candidate_phone">Phone Number</label>
+                        <input type="text" id="candidate_phone" name="candidate_phone" value="{{ profile.candidate_phone }}" placeholder="(123) 456-7890" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="candidate_location">Location Preference</label>
+                        <input type="text" id="candidate_location" name="candidate_location" value="{{ profile.candidate_location }}" placeholder="Remote / New York" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Resume PDF Document</label>
+                        <div class="file-upload-wrapper">
+                            <input type="file" id="resume_file" name="resume_file" accept=".pdf" style="display: none;" {% if not resume_exists %}required{% endif %}>
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('resume_file').click()">
+                                📎 Select PDF File
+                            </button>
+                            <div id="fileSelectedName" class="file-selected-name">
+                                {% if resume_exists %}
+                                📄 resume.pdf (Saved on server)
+                                {% else %}
+                                ❌ No file chosen
+                                {% endif %}
+                            </div>
+                        </div>
+                        <span class="status-badge {% if resume_exists %}badge-success{% else %}badge-error{% endif %}" id="resumeBadge" data-exists="{{ 'true' if resume_exists else 'false' }}">
+                            {% if resume_exists %}Resume Configured ✅{% else %}Resume Missing ❌{% endif %}
+                        </span>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block">Save Profile Details</button>
+                </form>
+            </div>
+
+            <!-- Right Panel: Controller & Results -->
+            <div class="glass-card workspace-panel">
+                <h2>🚀 Automation Control Board</h2>
+                
+                <div class="search-form-row">
+                    <div class="form-group flex-1">
+                        <label for="search_keywords">Job Keywords</label>
+                        <input type="text" id="search_keywords" placeholder="e.g. Web Developer, Contract" value="Web Developer">
+                    </div>
+                    <div class="align-bottom">
+                        <button id="searchBtn" class="btn btn-accent btn-large">Start Scraper</button>
+                    </div>
+                </div>
+
+                <!-- Live Activity Board (SaaS Layout) -->
+                <div class="activity-board hidden" id="activityBoard">
+                    <div class="activity-header">
+                        <h3>🚀 Scraper Live Activity</h3>
+                        <div class="activity-stats">
+                            <div class="stat-item">Scraped: <span id="statScraped">0</span></div>
+                            <div class="stat-item">Unique Emails Found: <span id="statFound">0</span></div>
+                        </div>
+                    </div>
+                    <div class="activity-table-wrapper">
+                        <table class="activity-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Company</th>
+                                    <th>Action</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activityTableBody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Collapsible Raw Terminal Console -->
+                    <div class="collapsible-console">
+                        <button class="console-trigger" onclick="toggleRawConsole()">
+                            <span>⚙️ Show Raw Developer Logs</span>
+                            <span id="consoleArrow">▼</span>
+                        </button>
+                        <div class="log-console-container hidden" id="logConsole" style="margin-top: 0.5rem;">
+                            <div class="console-body" id="consoleBody">
+                                <div class="log-line">Initializing Playwright browser automation...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recruiter Post Results -->
+                <div class="results-header">
+                    <h3>📋 Found Recruiters & Posts</h3>
+                    <span id="resultCount" class="result-count">0 matching posts</span>
+                </div>
+                
+                <div class="results-list" id="resultsList">
+                    <p class="placeholder-text">Enter your settings, keywords, and click "Start Scraper" to fetch matching recruiter posts.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Edit Modal -->
+    <div id="emailModal" class="modal hidden">
+        <div class="modal-content glass-card">
+            <span class="close-modal" id="closeModalBtn">&times;</span>
+            <h2>✏️ Review & Edit Application Cover Letter</h2>
+            
+            <div class="form-group">
+                <label for="modalTo">Recipient Email</label>
+                <input type="email" id="modalTo">
+            </div>
+            <div class="form-group">
+                <label for="modalSubject">Email Subject</label>
+                <input type="text" id="modalSubject">
+            </div>
+            <div class="form-group">
+                <label for="modalBody">Email Body</label>
+                <textarea id="modalBody" rows="14"></textarea>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="cancelSendBtn">Cancel</button>
+                <button class="btn btn-accent" id="confirmSendBtn">Send Application 🚀</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Logic -->
+    <script>
+        const configForm = document.getElementById('configForm');
+        const searchBtn = document.getElementById('searchBtn');
+        const resultsList = document.getElementById('resultsList');
+        const resultCount = document.getElementById('resultCount');
+        const activityBoard = document.getElementById('activityBoard');
+        const activityTableBody = document.getElementById('activityTableBody');
+        const logConsole = document.getElementById('logConsole');
+        const consoleBody = document.getElementById('consoleBody');
+        const consoleArrow = document.getElementById('consoleArrow');
+        
+        // Stats
+        const statScraped = document.getElementById('statScraped');
+        const statFound = document.getElementById('statFound');
+
+        // Modal elements
+        const emailModal = document.getElementById('emailModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const cancelSendBtn = document.getElementById('cancelSendBtn');
+        const confirmSendBtn = document.getElementById('confirmSendBtn');
+        const modalTo = document.getElementById('modalTo');
+        const modalSubject = document.getElementById('modalSubject');
+        const modalBody = document.getElementById('modalBody');
+
+        let activeIndex = -1;
+        let logPoller = null;
+        let loggedCompanies = new Map(); // Keep track of rows to update in real-time
+        let foundEmails = new Set();     // Store unique emails found during this scan to prevent UI count inflation
+        let currentPosts = [];           // Global cache of search results
+
+        function toggleRawConsole() {
+            if (logConsole.classList.contains('hidden')) {
+                logConsole.classList.remove('hidden');
+                consoleArrow.textContent = '▲';
+            } else {
+                logConsole.classList.add('hidden');
+                consoleArrow.textContent = '▼';
+            }
+        }
+
+        // Display chosen file name in UI if selected
+        const resumeFileInput = document.getElementById('resume_file');
+        const fileSelectedName = document.getElementById('fileSelectedName');
+        if (resumeFileInput) {
+            resumeFileInput.addEventListener('change', () => {
+                if (resumeFileInput.files && resumeFileInput.files.length > 0) {
+                    const fileName = resumeFileInput.files[0].name;
+                    fileSelectedName.textContent = `📎 ${fileName} (Selected)`;
+                    
+                    const badge = document.getElementById('resumeBadge');
+                    badge.textContent = `Selected: ${fileName} (Pending Save)`;
+                    badge.className = "status-badge badge-success";
+                }
+            });
+        }
+
+        // Save Settings
+        configForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(configForm);
+            
+            const res = await fetch('/api/save_config', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            alert(data.message);
+            location.reload();
+        });
+
+        // Parse log messages in real-time and render clean activity rows
+        function processLogsToActivity(logs) {
+            logs.forEach(log => {
+                const timeMatch = log.match(/^\[(.*?)\]\s*(.*)/);
+                if (!timeMatch) return;
+                
+                const timeStr = timeMatch[1];
+                const msg = timeMatch[2];
+
+                // Regex matches to parse structured actions
+                const jobMatch = msg.match(/Analyzing Job (\d+):\s*(.*?)\s*at\s*(.*?)\.\.\./);
+                if (jobMatch) {
+                    const jobIdx = jobMatch[1];
+                    const jobTitle = jobMatch[2];
+                    const company = jobMatch[3].trim();
+
+                    if (!loggedCompanies.has(company)) {
+                        const tr = document.createElement('tr');
+                        tr.id = `row-${company.replace(/\s+/g, '-')}`;
+                        tr.innerHTML = `
+                            <td>${timeStr}</td>
+                            <td><strong>${company}</strong></td>
+                            <td class="col-action">Opening Job Listing...</td>
+                            <td><span class="badge-status badge-status-searching">Searching</span></td>
+                        `;
+                        activityTableBody.appendChild(tr);
+                        loggedCompanies.set(company, { status: 'searching', action: 'Opening Job Listing...' });
+                        
+                        // Update total count
+                        statScraped.textContent = loggedCompanies.size;
+                    }
+                    return;
+                }
+
+                // Match Hunter query
+                const hunterMatch = msg.match(/Querying Hunter.io API for company:\s*'(.*?)'/);
+                if (hunterMatch) {
+                    const company = hunterMatch[1].trim();
+                    const row = document.getElementById(`row-${company.replace(/\s+/g, '-')}`);
+                    if (row) {
+                        row.querySelector('.col-action').textContent = 'Querying Hunter.io API...';
+                    }
+                    return;
+                }
+
+                // Match profile crawl
+                const crawlMatch = msg.match(/Crawling recruiter profile:\s*(.*)/);
+                if (crawlMatch) {
+                    const rows = activityTableBody.querySelectorAll('tr');
+                    if (rows.length > 0) {
+                        const lastRow = rows[rows.length - 1];
+                        lastRow.querySelector('.col-action').textContent = 'Crawling recruiter profile...';
+                    }
+                    return;
+                }
+
+                // Match Success Found Email
+                const successMatch = msg.match(/-> Found email.*:\s*(.*)/);
+                const fallbackSuccessMatch = msg.match(/-> Hunter.io (?:fallback|matched HR) email:\s*(.*)/);
+                const finalEmail = successMatch ? successMatch[1] : (fallbackSuccessMatch ? fallbackSuccessMatch[1] : null);
+
+                if (finalEmail) {
+                    const rows = activityTableBody.querySelectorAll('tr');
+                    if (rows.length > 0) {
+                        const lastRow = rows[rows.length - 1];
+                        const badge = lastRow.querySelector('.badge-status');
+                        
+                        // Check if we've already registered this email address during this session
+                        if (foundEmails.has(finalEmail)) {
+                            badge.textContent = 'Duplicate Email';
+                            badge.className = 'badge-status badge-status-duplicate';
+                            lastRow.querySelector('.col-action').textContent = `Skip duplicated email: ${finalEmail}`;
+                        } else {
+                            // Register the email and increment unique emails count
+                            foundEmails.add(finalEmail);
+                            badge.textContent = 'Email Found ✔';
+                            badge.className = 'badge-status badge-status-success';
+                            lastRow.querySelector('.col-action').textContent = finalEmail;
+                            
+                            statFound.textContent = foundEmails.size;
+                        }
+                    }
+                    return;
+                }
+
+                // Match Mismatch Warning
+                if (msg.includes('⚠️ Mismatch warning')) {
+                    const rows = activityTableBody.querySelectorAll('tr');
+                    if (rows.length > 0) {
+                        const lastRow = rows[rows.length - 1];
+                        const badge = lastRow.querySelector('.badge-status');
+                        badge.textContent = 'Mismatch 🛑';
+                        badge.className = 'badge-status badge-status-skipped';
+                        lastRow.querySelector('.col-action').textContent = 'Does not match with the job requirements';
+                    }
+                    return;
+                }
+
+                // Match Skip / No Email
+                if (msg.includes('-> No contact email found') || msg.includes('Skipping.')) {
+                    const rows = activityTableBody.querySelectorAll('tr');
+                    if (rows.length > 0) {
+                        const lastRow = rows[rows.length - 1];
+                        const badge = lastRow.querySelector('.badge-status');
+                        if (badge.textContent === 'Searching') {
+                            badge.textContent = 'No Email ⚠';
+                            badge.className = 'badge-status badge-status-skipped';
+                            lastRow.querySelector('.col-action').textContent = 'No contact details found';
+                        }
+                    }
+                }
+            });
+        }
+
+        // Poll Logs from Backend
+        async function startLogPolling() {
+            if (logPoller) clearInterval(logPoller);
+            
+            logPoller = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/logs');
+                    const data = await res.json();
+                    if (data.status === 'success' && data.logs.length > 0) {
+                        consoleBody.innerHTML = '';
+                        data.logs.forEach(log => {
+                            const line = document.createElement('div');
+                            line.className = 'log-line';
+                            line.textContent = log;
+                            consoleBody.appendChild(line);
+                        });
+                        consoleBody.scrollTop = consoleBody.scrollHeight;
+
+                        processLogsToActivity(data.logs);
+                    }
+                } catch (e) {
+                    // Ignore transient errors
+                }
+            }, 800);
+        }
+
+        function stopLogPolling() {
+            if (logPoller) {
+                clearInterval(logPoller);
+                logPoller = null;
+            }
+        }
+
+        // Start Scraper Search
+        searchBtn.addEventListener('click', async () => {
+            const keywords = document.getElementById('search_keywords').value;
+
+            if(!keywords) {
+                alert('Please enter search keywords!');
+                return;
+            }
+
+            const candidateName = document.getElementById('candidate_name').value.trim();
+            const candidatePhone = document.getElementById('candidate_phone').value.trim();
+            const candidateLocation = document.getElementById('candidate_location').value.trim();
+            const resumeExists = document.getElementById('resumeBadge').getAttribute('data-exists') === 'true';
+            const resumeInput = document.getElementById('resume_file');
+
+            if (!candidateName || !candidatePhone || !candidateLocation) {
+                alert('Please fill out and SAVE all Candidate Profile details first!');
+                return;
+            }
+
+            if (!resumeExists && (!resumeInput.files || resumeInput.files.length === 0)) {
+                alert('Please upload and SAVE a resume PDF before starting the scraper!');
+                return;
+            }
+
+            // Reset UI states
+            activityBoard.classList.remove('hidden');
+            activityTableBody.innerHTML = '';
+            consoleBody.innerHTML = '';
+            resultsList.innerHTML = '';
+            resultCount.textContent = 'Scanning...';
+            searchBtn.disabled = true;
+            searchBtn.textContent = 'Searching...';
+
+            statScraped.textContent = '0';
+            statFound.textContent = '0';
+            loggedCompanies.clear();
+            foundEmails.clear(); // Clean de-duplication pool for new search
+
+            // Start polling logs
+            startLogPolling();
+
+            try {
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keywords })
+                });
+                
+                const data = await res.json();
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Start Scraper';
+                
+                setTimeout(stopLogPolling, 1500);
+
+                if(data.status === 'success') {
+                    currentPosts = data.posts;
+                    resultCount.textContent = `${data.posts.length} matching posts`;
+                    
+                    if (data.posts.length === 0) {
+                        resultsList.innerHTML = '<p class="placeholder-text">No matching jobs with email contacts found today.</p>';
+                        return;
+                    }
+
+                    renderResults(data.posts);
+                } else if (data.status === 'blocked') {
+                    resultCount.textContent = 'Blocked 🛑';
+                    alert("🛑 Pre-flight Check Blocked:\n\n" + data.message);
+                } else {
+                    resultCount.textContent = 'Failed';
+                    alert(data.message);
+                }
+            } catch(e) {
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Start Scraper';
+                stopLogPolling();
+            }
+        });
+
+        // Render Results List
+        function renderResults(posts) {
+            resultsList.innerHTML = '';
+            posts.forEach((post, index) => {
+                const card = document.createElement('div');
+                card.className = 'glass-card result-card';
+                
+                const viewBtn = post.url && post.url !== 'N/A' 
+                    ? `<a href="${post.url}" target="_blank" class="btn btn-secondary btn-small">🔗 View Details</a>`
+                    : '';
+
+                card.innerHTML = `
+                    <div class="result-card-header">
+                        <h4>🏢 ${post.author}</h4>
+                        <div class="badge-emails">
+                            ${post.emails.map(email => `<span class="email-tag">${email}</span>`).join('')}
+                        </div>
+                    </div>
+                    <p class="post-snippet">"${post.text}"</p>
+                    <div class="result-card-footer">
+                        <div class="action-buttons">
+                            ${viewBtn}
+                            <button class="btn btn-accent btn-small" onclick="composeEmail(${index}, '${post.emails[0]}', \`${post.text.replace(/`/g, '\\`').replace(/\n/g, '\\n')}\`)">
+                                📧 Send Email / Apply
+                            </button>
+                        </div>
+                        <span class="status-label" id="status-${index}">Pending Review</span>
+                    </div>
+                `;
+                resultsList.appendChild(card);
+            });
+        }
+
+        // Open Cover Letter Draft Composer Modal
+        async function composeEmail(index, email, postSnippet) {
+            activeIndex = index;
+            modalTo.value = email;
+            
+            const job = currentPosts[index] || {};
+            const res = await fetch('/api/generate_email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    title: job.title || "Web Developer",
+                    company: job.author || "Company",
+                    post_snippet: postSnippet
+                })
+            });
+            const data = await res.json();
+            
+            if(data.status === 'success') {
+                modalSubject.value = data.subject;
+                modalBody.value = data.body;
+                emailModal.classList.remove('hidden');
+            } else {
+                alert('Failed to generate template.');
+            }
+        }
+
+        // Close Modal Handlers
+        closeModalBtn.addEventListener('click', () => emailModal.classList.add('hidden'));
+        cancelSendBtn.addEventListener('click', () => emailModal.classList.add('hidden'));
+
+        // Confirm and Send Email
+        confirmSendBtn.addEventListener('click', async () => {
+            const email = modalTo.value;
+            const subject = modalSubject.value;
+            const body = modalBody.value;
+            
+            emailModal.classList.add('hidden');
+            const statusLabel = document.getElementById(`status-${activeIndex}`);
+            statusLabel.textContent = 'Sending...';
+            statusLabel.className = 'status-label status-sending';
+            
+            try {
+                const res = await fetch('/api/apply', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ recruiter_email: email, subject, body })
+                });
+                const data = await res.json();
+                
+                if(data.status === 'success') {
+                    statusLabel.textContent = 'Applied ✅';
+                    statusLabel.className = 'status-label status-applied';
+                } else {
+                    statusLabel.textContent = 'Failed ❌';
+                    statusLabel.className = 'status-label status-failed';
+                    alert(data.message);
+                }
+            } catch(e) {
+                statusLabel.textContent = 'Failed ❌';
+                statusLabel.className = 'status-label status-failed';
+                alert('Request failed.');
+            }
+        });
+        // Toggle Help Blocks
+        function toggleHelp(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display = el.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+    </script>
+</body>
+</html>
