@@ -7,4 +7,5 @@ storage/
 config/resume.pdf
 config/error_debug.html
 config/run.log
+config/*.json
 *.log

@@ -197,8 +197,9 @@
                         <label for="search_keywords">Job Keywords</label>
                         <input type="text" id="search_keywords" placeholder="e.g. Web Developer, Contract" value="Web Developer">
                     </div>
-                    <div class="align-bottom">
+                    <div class="align-bottom" style="display: flex; gap: 0.75rem;">
                         <button id="searchBtn" class="btn btn-accent btn-large">Start Scraper</button>
+                        <button id="retryBtn" class="btn btn-secondary btn-large" style="padding: 0 1.25rem;" onclick="triggerManualRetry()">Retry Queue</button>
                     </div>
                 </div>
 
@@ -673,6 +674,23 @@
                 alert('Request failed.');
             }
         });
+        async function triggerManualRetry() {
+            const retryBtn = document.getElementById('retryBtn');
+            const originalText = retryBtn.textContent;
+            retryBtn.textContent = 'Retrying...';
+            retryBtn.disabled = true;
+            try {
+                const res = await fetch('/api/retry_queue', { method: 'POST' });
+                const data = await res.json();
+                alert(data.message || 'Retry sequence initiated!');
+            } catch(e) {
+                alert('Connection request failed.');
+            } finally {
+                retryBtn.textContent = originalText;
+                retryBtn.disabled = false;
+            }
+        }
+        
         // Toggle Help Blocks
         function toggleHelp(id) {
             const el = document.getElementById(id);

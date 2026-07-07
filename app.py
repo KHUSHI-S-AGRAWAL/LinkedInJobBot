@@ -372,5 +372,29 @@ def apply():
         "message": f"Email application pipeline initiated for {recruiter_email} in the background!"
     })
 
+@app.route("/api/retry_queue", methods=["POST"])
+def manual_retry_queue():
+    from src.mailer import retry_pending_emails
+    thread = threading.Thread(target=retry_pending_emails)
+    thread.daemon = True
+    thread.start()
+    return jsonify({"status": "success", "message": "Queue retry sequence triggered!"})
+
+def start_retry_daemon():
+    def run_loop():
+        time.sleep(10)
+        while True:
+            try:
+                from src.mailer import retry_pending_emails
+                retry_pending_emails()
+            except Exception as err:
+                print(f"[Daemon] Queue retry exception: {err}")
+            time.sleep(60)
+
+    daemon = threading.Thread(target=run_loop)
+    daemon.daemon = True
+    daemon.start()
+
 if __name__ == "__main__":
+    start_retry_daemon()
     app.run(debug=True, port=5000)
