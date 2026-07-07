@@ -273,7 +273,7 @@ def scrape_jobs_board(context, page, query):
     
     log_message(f"Navigating to Jobs Board: {search_url}")
     try:
-        page.goto(search_url, timeout=25000, wait_until="commit")
+        page.goto(search_url, timeout=25000, wait_until="domcontentloaded")
     except Exception as e:
         log_message(f"Jobs Board navigation settled. Proceeding.")
         
@@ -329,8 +329,34 @@ def scrape_jobs_board(context, page, query):
             log_message("⚠️ Anti-bot redirect detected! Forced onto homepage. Recovery routing initiated...")
             try:
                 page.goto(search_url, timeout=30000, wait_until="domcontentloaded")
-                time.sleep(5)
+                try:
+                    page.wait_for_selector(card_selector, timeout=12000)
+                except Exception:
+                    pass
+                # Scroll down slightly to trigger lazy load
+                try:
+                    page.evaluate("window.scrollTo(0, document.body.scrollHeight / 4);")
+                    time.sleep(2)
+                except Exception:
+                    pass
                 job_cards = page.query_selector_all(card_selector)
+                
+                # Deduplicate elements
+                seen_ids = set()
+                unique_cards = []
+                for c in job_cards:
+                    try:
+                        href = c.get_attribute("href")
+                        if href and "/view/" in href:
+                            job_id = href.split("/view/")[1].split("/")[0]
+                            if job_id not in seen_ids:
+                                seen_ids.add(job_id)
+                                unique_cards.append(c)
+                        else:
+                            unique_cards.append(c)
+                    except Exception:
+                        unique_cards.append(c)
+                job_cards = unique_cards
                 limit = min(len(job_cards), 15)
             except Exception as recovery_err:
                 log_message(f"⚠️ Recovery routing navigation issue: {recovery_err}")
@@ -463,11 +489,15 @@ def run_post_scraper(query, headless=True):
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     
     li_at_cookie = os.getenv("LINKEDIN_LI_AT_COOKIE")
-    
+    if li_at_cookie:
+        li_at_cookie = li_at_cookie.strip().replace('"', '').replace("'", "").replace(" ", "")
+        
     # If a cookie is present, we can validate it in headless mode first
     is_headless = headless
-    if li_at_cookie and li_at_cookie != "None":
+    if li_at_cookie and li_at_cookie != "None" and li_at_cookie != "":
         is_headless = True  # Always start headless for cookie injection
+    else:
+        li_at_cookie = None
         
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
@@ -497,15 +527,20 @@ def run_post_scraper(query, headless=True):
             search_url = f"https://www.linkedin.com/jobs/search/?keywords={encoded_query}&f_TPR=r86400"
             
             log_message("Checking LinkedIn authentication session...")
-            page.goto(search_url, timeout=30000, wait_until="commit")
-            time.sleep(5)
+            session_valid = True
+            try:
+                page.goto(search_url, timeout=30000, wait_until="domcontentloaded")
+                time.sleep(5)
+            except Exception as e:
+                log_message(f"⚠️ Navigation redirect block captured: {e}")
+                session_valid = False
             
             current_url = page.url
-            if "login" in current_url or "checkpoint" in current_url:
+            if not session_valid or "login" in current_url or "checkpoint" in current_url:
                 log_message("❌ Session cookie is invalid or expired. Fallback login required.")
                 
                 # If we are headless, we must close and launch headful browser for manual validation
-                if is_headless and not li_at_cookie:
+                if is_headless:
                     page.close()
                     context.close()
                     # Reopen headful
@@ -516,8 +551,11 @@ def run_post_scraper(query, headless=True):
                         args=["--disable-blink-features=AutomationControlled", "--start-maximized"]
                     )
                     page = context.pages[0] if context.pages else context.new_page()
-                    page.goto(search_url, timeout=30000, wait_until="commit")
-                    time.sleep(5)
+                    try:
+                        page.goto(search_url, timeout=30000, wait_until="domcontentloaded")
+                        time.sleep(5)
+                    except Exception:
+                        pass
                 
                 if not check_and_login_linkedin(page, query):
                     log_message("Could not log in. Aborting search.")

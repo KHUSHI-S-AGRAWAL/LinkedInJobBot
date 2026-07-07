@@ -144,9 +144,9 @@ def update_profile_env(updates):
 @app.route("/")
 def index():
     candidate_profile = {
-        "candidate_name": "",
-        "candidate_phone": "",
-        "candidate_location": "",
+        "candidate_name": os.getenv("CANDIDATE_NAME", ""),
+        "candidate_phone": os.getenv("CANDIDATE_PHONE", ""),
+        "candidate_location": os.getenv("CANDIDATE_LOCATION", ""),
     }
     resume_exists = settings.RESUME_PATH.exists()
     return render_template("index.html", profile=candidate_profile, resume_exists=resume_exists)

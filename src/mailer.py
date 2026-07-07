@@ -84,13 +84,22 @@ Phone: (123) 456-7890
         app_password = settings.GMAIL_APP_PASSWORD.strip().replace('"', '').replace("'", "").replace(" ", "")
         
         print(f"[Mailer] Connecting to SMTP Server smtp.gmail.com on Port 587 (timeout=30, starttls)...")
-        with force_ipv4():
-            with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
-                server.starttls()  # SSL handshake validates hostname natively
-                server.login(sender_email, app_password)
-                server.sendmail(sender_email, recruiter_email, msg.as_string())
-        print(f"[Mailer] Email successfully sent to {recruiter_email}!")
-        return True
+        try:
+            with force_ipv4():
+                with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
+                    server.starttls()  # SSL handshake validates hostname natively
+                    server.login(sender_email, app_password)
+                    server.sendmail(sender_email, recruiter_email, msg.as_string())
+            print(f"[Mailer] Email successfully sent to {recruiter_email}!")
+            return True
+        except Exception as e587:
+            print(f"[Mailer] Port 587 failed ({e587}). Attempting secure SMTP fallback on Port 465...")
+            with force_ipv4():
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
+                    server.login(sender_email, app_password)
+                    server.sendmail(sender_email, recruiter_email, msg.as_string())
+            print(f"[Mailer] Email successfully sent to {recruiter_email} via Port 465 fallback!")
+            return True
     except Exception as e:
         print(f"[Mailer] Failed to send email to {recruiter_email}: {e}")
         return False
@@ -128,13 +137,22 @@ def send_custom_email(recruiter_email, subject, body_content):
         app_password = settings.GMAIL_APP_PASSWORD.strip().replace('"', '').replace("'", "").replace(" ", "")
         
         print(f"[Mailer] Connecting to SMTP Server smtp.gmail.com on Port 587 (timeout=30, starttls)...")
-        with force_ipv4():
-            with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
-                server.starttls()  # SSL handshake validates hostname natively
-                server.login(sender_email, app_password)
-                server.sendmail(sender_email, recruiter_email, msg.as_string())
-        print(f"[Mailer] Custom email successfully sent to {recruiter_email}!")
-        return True
+        try:
+            with force_ipv4():
+                with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
+                    server.starttls()  # SSL handshake validates hostname natively
+                    server.login(sender_email, app_password)
+                    server.sendmail(sender_email, recruiter_email, msg.as_string())
+            print(f"[Mailer] Custom email successfully sent to {recruiter_email}!")
+            return True
+        except Exception as e587:
+            print(f"[Mailer] Port 587 failed ({e587}). Attempting secure SMTP fallback on Port 465...")
+            with force_ipv4():
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
+                    server.login(sender_email, app_password)
+                    server.sendmail(sender_email, recruiter_email, msg.as_string())
+            print(f"[Mailer] Custom email successfully sent to {recruiter_email} via Port 465 fallback!")
+            return True
     except Exception as e:
         print(f"[Mailer] Failed to send email to {recruiter_email}: {e}")
         return False
