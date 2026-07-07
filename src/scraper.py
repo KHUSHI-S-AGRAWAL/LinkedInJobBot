@@ -140,10 +140,16 @@ def query_hunter_api(company_name):
 
 def check_login_state_headless():
     logged_in = False
+    import hashlib
+    user_identifier = os.getenv("GMAIL_EMAIL", "default").strip().lower()
+    email_hash = hashlib.md5(user_identifier.encode()).hexdigest()[:12]
+    user_profile_dir = PROFILE_DIR.parent / f"browser_profile_{email_hash}"
+    user_profile_dir.mkdir(parents=True, exist_ok=True)
+    
     with sync_playwright() as p:
         try:
             context = p.chromium.launch_persistent_context(
-                user_data_dir=str(PROFILE_DIR),
+                user_data_dir=str(user_profile_dir),
                 headless=True,
                 user_agent=USER_AGENT,
                 args=["--disable-blink-features=AutomationControlled"]
@@ -486,12 +492,19 @@ def scrape_jobs_board(context, page, query):
 
 def run_post_scraper(query, headless=True):
     recruiter_posts = []
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     
     li_at_cookie = os.getenv("LINKEDIN_LI_AT_COOKIE")
     if li_at_cookie:
         li_at_cookie = li_at_cookie.strip().replace('"', '').replace("'", "").replace(" ", "")
         
+    # Generate an isolated profile directory name based on the unique hash of the GMAIL_EMAIL environment variable.
+    # This prevents cookie/session store conflicts when swapping credentials in multi-user test environments.
+    import hashlib
+    user_identifier = os.getenv("GMAIL_EMAIL", "default").strip().lower()
+    email_hash = hashlib.md5(user_identifier.encode()).hexdigest()[:12]
+    user_profile_dir = PROFILE_DIR.parent / f"browser_profile_{email_hash}"
+    user_profile_dir.mkdir(parents=True, exist_ok=True)
+    
     # If a cookie is present, we can validate it in headless mode first
     is_headless = headless
     if li_at_cookie and li_at_cookie != "None" and li_at_cookie != "":
@@ -501,7 +514,7 @@ def run_post_scraper(query, headless=True):
         
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
-            user_data_dir=str(PROFILE_DIR),
+            user_data_dir=str(user_profile_dir),
             headless=is_headless,
             user_agent=USER_AGENT,
             args=["--disable-blink-features=AutomationControlled"]
@@ -545,7 +558,7 @@ def run_post_scraper(query, headless=True):
                     context.close()
                     # Reopen headful
                     context = p.chromium.launch_persistent_context(
-                        user_data_dir=str(PROFILE_DIR),
+                        user_data_dir=str(user_profile_dir),
                         headless=False,
                         user_agent=USER_AGENT,
                         args=["--disable-blink-features=AutomationControlled", "--start-maximized"]

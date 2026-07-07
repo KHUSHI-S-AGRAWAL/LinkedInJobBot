@@ -2,7 +2,7 @@
 venv/
 __pycache__/
 *.pyc
-config/browser_profile/
+config/browser_profile*/
 storage/
 config/resume.pdf
 config/error_debug.html
