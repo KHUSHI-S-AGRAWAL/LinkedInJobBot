@@ -266,10 +266,9 @@ def generate_email():
             - Availability: Immediate / Remote Open
             """
             
-            subject_prompt = f"Create a short, professional email subject line for an application matching the job: '{job_title}' at '{company_name}'. Return ONLY the subject line text. Do not wrap in quotes."
-            body_prompt = f"""
-            You are an elite career assistant module for an automated job application platform. 
-            Write a short, professional, direct cold email applying for a job.
+            prompt = f"""
+            You are an elite career assistant module for an automated job application platform.
+            Write a short, professional, direct cold email applying for a job, and create a matching subject line.
             
             Target Job Title: {job_title}
             Target Company: {company_name}
@@ -280,37 +279,44 @@ def generate_email():
             Strict Design Rules:
             1. Direct Intent: State clearly in the first sentence that the applicant is applying for the '{job_title}' position at '{company_name}'.
             2. NO Echoing: Do NOT quote or reference text blocks, snippets, role descriptions, headers, location requirements, or salary numbers from the job description. The recruiter already knows what the job details are.
-            3. Profile Extraction: Dynamically extract the applicant's real name and contact information directly from the provided Resume Data. Do NOT invent names or use old placeholder strings. Ensure the name '{candidate_name}' is used at the sign-off if the resume text lacks it.
+            3. Profile Extraction: Dynamically extract the applicant's real name and contact information directly from the provided Resume Data. Ensure the name '{candidate_name}' is used at the sign-off if the resume text lacks it.
             4. Short Summary: Briefly mention 2 or 3 core technical or professional skill sets from the user's resume that match the job field to show competence, then state that their professional resume is attached as a PDF.
             5. Length: Keep the entire email under 120 words. No boilerplate fluff.
-            6. Output Format: Return ONLY the raw body text of the email. Do not include markdown brackets, code blocks, or subject lines.
+            6. Output Format: Return a raw JSON object with exactly two keys: 'subject' (the email subject line text) and 'body' (the cold email body text). Do not include markdown code block formatting (e.g. do not wrap in ```json).
             """
             
             try:
                 subject_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={api_key}"
                 
-                # Generate Subject with retry wrapper
-                res_sub = make_gemini_request_with_retry(subject_url, {
-                    "contents": [{"parts": [{"text": subject_prompt}]}]
+                # Single-pass Gemini generation to save rate limits and speed up execution
+                res = make_gemini_request_with_retry(subject_url, {
+                    "contents": [{"parts": [{"text": prompt}]}]
                 })
-                ai_subject = f"Application: {candidate_name} - Job Inquiry"
-                if res_sub and res_sub.status_code == 200:
-                    content = res_sub.json()
-                    ai_subject = content["candidates"][0]["content"]["parts"][0]["text"].strip().replace('"', '')
+                
+                ai_subject = f"Application: {candidate_name} - {job_title} Role"
+                ai_body = ""
+                
+                if res and res.status_code == 200:
+                    import json
+                    content = res.json()
+                    raw_text = content["candidates"][0]["content"]["parts"][0]["text"].strip()
                     
-                # Generate Body with retry wrapper
-                res_body = make_gemini_request_with_retry(subject_url, {
-                    "contents": [{"parts": [{"text": body_prompt}]}]
-                })
-                if res_body and res_body.status_code == 200:
-                    content = res_body.json()
-                    ai_body = content["candidates"][0]["content"]["parts"][0]["text"].strip()
+                    try:
+                        # Strip any markdown code blocks if Gemini wraps the JSON
+                        if raw_text.startswith("```"):
+                            raw_text = raw_text.replace("```json", "").replace("```", "").strip()
+                        parsed = json.loads(raw_text)
+                        ai_subject = parsed.get("subject", ai_subject)
+                        ai_body = parsed.get("body", "")
+                    except Exception:
+                        ai_body = raw_text
                     
-                    return jsonify({
-                        "status": "success",
-                        "subject": ai_subject,
-                        "body": ai_body
-                    })
+                    if ai_body:
+                        return jsonify({
+                            "status": "success",
+                            "subject": ai_subject,
+                            "body": ai_body
+                        })
             except Exception as e:
                 log_message(f"Gemini AI generation warning: {e}. Falling back to standard templates.")
 

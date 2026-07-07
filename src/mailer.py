@@ -2,26 +2,10 @@ import smtplib
 import socket
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
+from email.mime.base import MIMEBase
+from email import encoders
 from pathlib import Path
 import sys
-
-import contextlib
-
-# Context manager to temporarily force socket.getaddrinfo to resolve ONLY IPv4 addresses.
-# This prevents Windows systems from attempting IPv6 connections (bypassing WinError 10060 connection timeout issues)
-# while retaining the "smtp.gmail.com" hostname for valid SSL handshake verification.
-# By making this a context manager, we prevent global monkeypatch side-effects (like Gemini API's SSL EOF errors).
-@contextlib.contextmanager
-def force_ipv4():
-    orig_getaddrinfo = socket.getaddrinfo
-    def ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-        return orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
-    socket.getaddrinfo = ipv4_only_getaddrinfo
-    try:
-        yield
-    finally:
-        socket.getaddrinfo = orig_getaddrinfo
 
 # Add parent directory to sys.path to import config
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -34,10 +18,13 @@ def send_recruiter_email(recruiter_email, post_snippet, job_keywords="Java Devel
         print("[Mailer] Error: Gmail credentials are not configured in settings.")
         return False
 
+    sender_email = settings.GMAIL_EMAIL.strip().replace('"', '').replace("'", "")
+    app_password = settings.GMAIL_APP_PASSWORD.strip().replace('"', '').replace("'", "").replace(" ", "")
+
     msg = MIMEMultipart()
-    msg['From'] = settings.GMAIL_EMAIL
+    msg['From'] = f"Khushi Agrawal <{sender_email}>"
     msg['To'] = recruiter_email
-    msg['Subject'] = f"Application: {job_keywords} - Job Inquiry"
+    msg['Subject'] = f"Application: Khushi Agrawal - {job_keywords} Role"
 
     body = f"""Dear Hiring Team / Recruiter,
 
@@ -59,50 +46,56 @@ I have attached my resume to this email. I would appreciate the opportunity to d
 Looking forward to hearing from you.
 
 Best regards,
-Candidate Name
-Email: {settings.GMAIL_EMAIL}
-Phone: (123) 456-7890
+Khushi Agrawal
+Email: {sender_email}
 """
     msg.attach(MIMEText(body, 'plain'))
 
-    # Attach Resume PDF
+    # Optimized Resume Attachment Handling
     resume_path = Path(settings.RESUME_PATH)
     if resume_path.exists():
         try:
-            with open(resume_path, "rb") as f:
-                attach = MIMEApplication(f.read(), _subtype="pdf")
-                attach.add_header('Content-Disposition', 'attachment', filename=resume_path.name)
-                msg.attach(attach)
-                print(f"[Mailer] Attached resume: {resume_path.name}")
+            with open(resume_path, "rb") as attachment:
+                part = MIMEBase("application", "octet-stream")
+                part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition",
+                f"attachment; filename={resume_path.name}",
+            )
+            msg.attach(part)
+            print(f"[Mailer] Attached resume: {resume_path.name}")
         except Exception as e:
             print(f"[Mailer] Failed to attach resume: {e}")
     else:
         print(f"[Mailer] Warning: Resume not found at {resume_path}")
 
+    # Direct, Aggressive Port 587 Connection (No Sequential Lag Loop)
+    server = None
     try:
-        sender_email = settings.GMAIL_EMAIL.strip().replace('"', '').replace("'", "")
-        app_password = settings.GMAIL_APP_PASSWORD.strip().replace('"', '').replace("'", "").replace(" ", "")
+        print(f"[Mailer] Attaching direct stream socket to smtp.gmail.com on Port 587...")
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
         
-        print(f"[Mailer] Connecting to SMTP Server smtp.gmail.com on Port 587 (timeout=30, starttls)...")
-        try:
-            with force_ipv4():
-                with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
-                    server.starttls()  # SSL handshake validates hostname natively
-                    server.login(sender_email, app_password)
-                    server.sendmail(sender_email, recruiter_email, msg.as_string())
-            print(f"[Mailer] Email successfully sent to {recruiter_email}!")
-            return True
-        except Exception as e587:
-            print(f"[Mailer] Port 587 failed ({e587}). Attempting secure SMTP fallback on Port 465...")
-            with force_ipv4():
-                with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
-                    server.login(sender_email, app_password)
-                    server.sendmail(sender_email, recruiter_email, msg.as_string())
-            print(f"[Mailer] Email successfully sent to {recruiter_email} via Port 465 fallback!")
-            return True
-    except Exception as e:
-        print(f"[Mailer] Failed to send email to {recruiter_email}: {e}")
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        
+        print(f"[Mailer] Authenticating credentials...")
+        server.login(sender_email, app_password)
+        
+        print(f"[Mailer] Dispatches active data bundle stream...")
+        server.sendmail(sender_email, recruiter_email, msg.as_string())
+        print(f"[Mailer] Email successfully sent to {recruiter_email}!")
+        return True
+    except Exception as smtp_err:
+        print(f"[Mailer] Critical connection block: {smtp_err}")
         return False
+    finally:
+        if server:
+            try:
+                server.quit()
+            except:
+                pass
 
 def send_custom_email(recruiter_email, subject, body_content):
     print(f"[Mailer] Preparing custom email to recruiter: {recruiter_email}...")
@@ -111,51 +104,61 @@ def send_custom_email(recruiter_email, subject, body_content):
         print("[Mailer] Error: Gmail credentials are not configured.")
         return False
 
+    sender_email = settings.GMAIL_EMAIL.strip().replace('"', '').replace("'", "")
+    app_password = settings.GMAIL_APP_PASSWORD.strip().replace('"', '').replace("'", "").replace(" ", "")
+
     msg = MIMEMultipart()
-    msg['From'] = settings.GMAIL_EMAIL
+    msg['From'] = f"Khushi Agrawal <{sender_email}>"
     msg['To'] = recruiter_email
     msg['Subject'] = subject
 
     msg.attach(MIMEText(body_content, 'plain'))
 
-    # Attach Resume PDF
+    # Optimized Resume Attachment Handling
     resume_path = Path(settings.RESUME_PATH)
     if resume_path.exists():
         try:
-            with open(resume_path, "rb") as f:
-                attach = MIMEApplication(f.read(), _subtype="pdf")
-                attach.add_header('Content-Disposition', 'attachment', filename=resume_path.name)
-                msg.attach(attach)
-                print(f"[Mailer] Attached resume: {resume_path.name}")
+            with open(resume_path, "rb") as attachment:
+                part = MIMEBase("application", "octet-stream")
+                part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition",
+                f"attachment; filename={resume_path.name}",
+            )
+            msg.attach(part)
+            print(f"[Mailer] Attached resume: {resume_path.name}")
         except Exception as e:
             print(f"[Mailer] Failed to attach resume: {e}")
     else:
         print(f"[Mailer] Warning: Resume not found at {resume_path}")
 
+    # Direct, Aggressive Port 587 Connection (No Sequential Lag Loop)
+    server = None
     try:
-        sender_email = settings.GMAIL_EMAIL.strip().replace('"', '').replace("'", "")
-        app_password = settings.GMAIL_APP_PASSWORD.strip().replace('"', '').replace("'", "").replace(" ", "")
+        print(f"[Mailer] Attaching direct stream socket to smtp.gmail.com on Port 587...")
+        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
         
-        print(f"[Mailer] Connecting to SMTP Server smtp.gmail.com on Port 587 (timeout=30, starttls)...")
-        try:
-            with force_ipv4():
-                with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as server:
-                    server.starttls()  # SSL handshake validates hostname natively
-                    server.login(sender_email, app_password)
-                    server.sendmail(sender_email, recruiter_email, msg.as_string())
-            print(f"[Mailer] Custom email successfully sent to {recruiter_email}!")
-            return True
-        except Exception as e587:
-            print(f"[Mailer] Port 587 failed ({e587}). Attempting secure SMTP fallback on Port 465...")
-            with force_ipv4():
-                with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
-                    server.login(sender_email, app_password)
-                    server.sendmail(sender_email, recruiter_email, msg.as_string())
-            print(f"[Mailer] Custom email successfully sent to {recruiter_email} via Port 465 fallback!")
-            return True
-    except Exception as e:
-        print(f"[Mailer] Failed to send email to {recruiter_email}: {e}")
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        
+        print(f"[Mailer] Authenticating credentials...")
+        server.login(sender_email, app_password)
+        
+        print(f"[Mailer] Dispatches active data bundle stream...")
+        server.sendmail(sender_email, recruiter_email, msg.as_string())
+        print(f"[Mailer] Custom email successfully sent to {recruiter_email}!")
+        return True
+    except Exception as smtp_err:
+        print(f"[Mailer] Critical connection block: {smtp_err}")
         return False
+    finally:
+        if server:
+            try:
+                server.quit()
+            except:
+                pass
 
 if __name__ == "__main__":
     print("Testing mailer...")
